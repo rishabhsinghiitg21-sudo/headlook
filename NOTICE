@@ -1,0 +1,33 @@
+headlook third-party notices
+
+headlook itself is not open source: all rights reserved (see README). The
+pieces below are third-party and keep their own licences.
+
+MediaPipe (Google) - Apache License 2.0
+  Face Landmarker model and the MediaPipe Python and web (tasks-vision)
+  libraries. Not bundled: setup.sh and the browser sandbox download them.
+  https://github.com/google-ai-edge/mediapipe
+  https://www.apache.org/licenses/LICENSE-2.0
+
+three.js - MIT License
+  Loaded in the browser sandbox from cdnjs (r128), including the RGBELoader
+  example script from unpkg. Not bundled.
+  https://github.com/mrdoob/three.js
+
+BepInEx - LGPL-2.1
+  Unity mod loader used by the Art of Rally plugin. Not bundled and not
+  redistributed: you download it yourself. The plugin compiles against its
+  public API.
+  https://github.com/BepInEx/BepInEx
+
+Pedestrian Overpass HDRI (sandbox/textures/pedestrian_overpass_1k.hdr) - CC0 1.0
+  By Greg Zaal, from Poly Haven (https://polyhaven.com/a/pedestrian_overpass).
+  Poly Haven assets are released under CC0 (public domain dedication).
+  This copy is the 1k version as shipped in the three.js examples.
+  https://creativecommons.org/publicdomain/zero/1.0/
+
+Other Python dependencies (OpenCV, NumPy, pynput, PyObjC) are
+installed from PyPI by setup.sh under their own licences and are not bundled.
+
+Art of Rally is a game by Funselektor Labs. This project is unofficial and is
+not affiliated with or endorsed by them. No game files are included.

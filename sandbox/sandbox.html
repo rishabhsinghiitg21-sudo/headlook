@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>headlook — driving sandbox</title>
+<link rel="icon" href="data:,">
+<style>
+  :root { color-scheme: dark; }
+  html, body { margin:0; height:100%; overflow:hidden; background:#87b8d8;
+    font-family:-apple-system, system-ui, sans-serif; user-select:none; }
+  #hud { position:fixed; top:14px; left:14px; color:#fff; text-shadow:0 1px 3px rgba(0,0,0,.6); font-size:14px; line-height:1.5; }
+  #hud b { font-size:16px; }
+  .dot { display:inline-block; width:9px; height:9px; border-radius:50%; background:#888; margin-right:5px; vertical-align:middle; }
+  .dot.ok { background:#4dff7a; } .dot.warn { background:#ffd34d; } .dot.bad { background:#ff5a5a; }
+  #panel { position:fixed; top:14px; right:14px; width:300px; background:rgba(18,22,30,.82);
+    border:1px solid rgba(255,255,255,.12); border-radius:14px; padding:12px; backdrop-filter:blur(8px); }
+  #cam { position:relative; width:100%; border-radius:9px; overflow:hidden; background:#000; aspect-ratio:4/3; }
+  #cam canvas { width:100%; height:100%; display:block; transform:scaleX(-1); }
+  #cam .cap { position:absolute; top:6px; left:9px; color:#80ff8c; font-size:11px; letter-spacing:.08em; font-weight:700; text-shadow:0 1px 2px #000; }
+  #cam .cap.off { color:#ff9a9a; }
+  #cam .ang { position:absolute; bottom:6px; left:9px; color:#ffe14d; font-size:11px; font-variant-numeric:tabular-nums; text-shadow:0 1px 2px #000; }
+  .btns { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px; }
+  button { font:inherit; font-size:13px; font-weight:600; color:#eaf2ff; background:#2a3140;
+    border:1px solid rgba(255,255,255,.14); border-radius:9px; padding:9px 8px; cursor:pointer; }
+  button:hover { background:#343d4f; }
+  button.wide, button.primary { grid-column:1 / -1; }
+  button.primary { background:#2f6b3f; border-color:#3f9a57; }
+  button.primary.on { background:#3f9a57; }
+  button.flash { background:#4a5670; }
+  button.on:not(.primary) { background:#3b5a8c; border-color:#6a97d6; }
+  button:focus { outline:none; }
+  button:focus-visible { outline:2px solid #ffe14d; outline-offset:2px; }
+  .row { display:flex; align-items:center; gap:8px; margin-top:10px; font-size:12px; color:#bcd; }
+  input[type=range] { flex:1; min-width:0; }
+  #help { position:fixed; bottom:14px; left:14px; color:#fff; text-shadow:0 1px 3px rgba(0,0,0,.6); font-size:13px; line-height:1.7; }
+  kbd { background:rgba(255,255,255,.85); color:#222; border-radius:4px; padding:1px 6px; font-weight:700; }
+  #gate { position:fixed; inset:0; background:rgba(8,10,14,.92); display:flex; align-items:center; justify-content:center; z-index:50; }
+  #gate .card { max-width:430px; text-align:center; color:#eaf2ff; padding:30px; }
+  #gate h1 { font-size:21px; margin:0 0 10px; }
+  #gate p { color:#aebed0; line-height:1.6; }
+  #gate button { font-size:15px; padding:12px 22px; margin-top:18px; background:#3f9a57; border-color:#54c070; }
+  #err { color:#ff9a9a; margin-top:12px; font-size:13px; min-height:18px; }
+</style>
+</head>
+<body>
+
+<div id="gate"><div class="card">
+  <h1>🚗 headlook driving sandbox</h1>
+  <p>Drive with <b>WASD</b>, turn your head to look around. The webcam runs
+     <b>entirely in your browser</b> — nothing is recorded or sent anywhere.
+     Click below and choose <b>Allow</b> for the camera.</p>
+  <button id="startBtn">Enable camera &amp; start</button>
+  <div id="err"></div>
+</div></div>
+
+<div id="hud">
+  <b>headlook driving sandbox</b><br>
+  <span class="dot" id="dCam"></span><span id="sCam">camera: off</span><br>
+  <span class="dot" id="dFace"></span><span id="sFace">face: —</span> &nbsp;·&nbsp; speed <span id="speed">0</span>
+</div>
+
+<div id="panel">
+  <div id="cam">
+    <div class="cap off" id="camCap">CAMERA OFF</div>
+    <canvas id="camCanvas"></canvas>
+    <div class="ang" id="angTxt">yaw — · pitch —</div>
+  </div>
+  <div class="btns">
+    <button id="engageBtn" class="primary">Engage head-look &nbsp;(Space)</button>
+    <button id="recenterBtn" class="wide">Recenter (R)</button>
+    <button id="flipXBtn" aria-pressed="false">↔ Flip L / R</button>
+    <button id="flipYBtn" aria-pressed="false">↕ Flip U / D</button>
+  </div>
+  <div class="row"><span>Sensitivity</span>
+    <input id="sens" type="range" min="2" max="8" step="0.5" value="4.5">
+  </div>
+</div>
+
+<div id="help">
+  <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> drive · <kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> free-look ·
+  <kbd>Space</kbd> head-look (overrides arrows) · <kbd>R</kbd> recenter<br>
+  Pillars: <span style="color:#ff5a5a">N red</span> ·
+  <span style="color:#5aff7a">E green</span> ·
+  <span style="color:#5aa8ff">S blue</span> ·
+  <span style="color:#ffe14d">W yellow</span>
+</div>
+
+<video id="video" autoplay playsinline muted style="display:none"></video>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/loaders/RGBELoader.js"></script>
+<script type="module">
+import { FaceLandmarker, FilesetResolver, DrawingUtils }
+  from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/vision_bundle.mjs";
+
+const UP = new THREE.Vector3(0,1,0);
+const box = (w,h,d,m) => new THREE.Mesh(new THREE.BoxGeometry(w,h,d), m);
+
+// ============================ renderer + scene ============================
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x9fc1d8);
+scene.fog = new THREE.Fog(0xaecadb, 220, 800);
+// 360° outdoor HDRI backdrop (real sky/horizon)
+new THREE.RGBELoader().load('textures/pedestrian_overpass_1k.hdr', (tex) => {
+  tex.mapping = THREE.EquirectangularReflectionMapping;
+  scene.background = tex;
+});
+
+const camera = new THREE.PerspectiveCamera(82, innerWidth/innerHeight, 0.05, 1000);
+camera.rotation.order = 'YXZ';
+
+const renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+document.body.appendChild(renderer.domElement);
+addEventListener('resize', () => {
+  camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+scene.add(new THREE.HemisphereLight(0xffffff, 0x556633, 1.0));
+const sun = new THREE.DirectionalLight(0xfff4e0, 0.8); sun.position.set(60,120,40); scene.add(sun);
+
+// ============================ simple scene ============================
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(1000,1000),
+  new THREE.MeshLambertMaterial({ color:0x6f8f5a }));
+ground.rotation.x = -Math.PI/2; scene.add(ground);
+const grid = new THREE.GridHelper(1000, 200, 0x4d6b3d, 0x4d6b3d); grid.position.y = 0.02; scene.add(grid);
+
+const obstacles = [];   // {cx,cz,hw,hd} footprints the car can't drive through
+function pillar(color,x,z){ const m=new THREE.Mesh(new THREE.CylinderGeometry(2,2,40,16),
+  new THREE.MeshLambertMaterial({color})); m.position.set(x,20,z); scene.add(m);
+  obstacles.push({cx:x,cz:z,hw:2.4,hd:2.4}); }
+pillar(0xff5a5a, 0,-160); pillar(0x5aff7a, 160,0); pillar(0x5aa8ff, 0,160); pillar(0xffe14d, -160,0);
+
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);
+  t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+const rng = mulberry32(1234567);
+const palette = [0xb5651d,0x8d99ae,0xc44536,0x386641,0x7209b7,0xe09f3e,0x4361ee];
+for(let i=0;i<90;i++){
+  const w=4+rng()*8, h=6+rng()*30, d=4+rng()*8;
+  const b=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),
+    new THREE.MeshLambertMaterial({color:palette[(rng()*palette.length)|0]}));
+  const r=30+rng()*200, a=rng()*Math.PI*2; const bx=Math.cos(a)*r, bz=Math.sin(a)*r;
+  b.position.set(bx, h/2, bz); scene.add(b);
+  obstacles.push({cx:bx, cz:bz, hw:w/2+0.3, hd:d/2+0.3});
+}
+window.__obstacles = obstacles;   // debug hook
+
+// ============================ the car (procedural cockpit) ============================
+const car = new THREE.Group(); scene.add(car);
+const SEAT = new THREE.Vector3(0.40, 1.36, -0.18);   // driver eye (right side); tall greenhouse, big windshield
+
+let steerWheel = null;
+(function buildCar(){
+  const paint  = new THREE.MeshLambertMaterial({color:0xc9332e});
+  const paintD = new THREE.MeshLambertMaterial({color:0x8e231f});
+  const dark   = new THREE.MeshLambertMaterial({color:0x14161b});
+  const trim   = new THREE.MeshLambertMaterial({color:0x24272e});
+  const seatM  = new THREE.MeshLambertMaterial({color:0x343943});
+  const seatT  = new THREE.MeshLambertMaterial({color:0x454b57});
+  const headln = new THREE.MeshLambertMaterial({color:0x8d9299});
+  const chrome = new THREE.MeshPhongMaterial({color:0xb9c0c8, shininess:120});
+  const glass  = new THREE.MeshPhongMaterial({color:0xbfe0f0, transparent:true, opacity:0.08, shininess:90, depthWrite:false, side:THREE.DoubleSide});
+  const screenM= new THREE.MeshBasicMaterial({color:0x1d6fb0});
+  const tail   = new THREE.MeshBasicMaterial({color:0xff3b30});
+  const head   = new THREE.MeshBasicMaterial({color:0xfff6d8});
+  const add=(m)=>{ car.add(m); return m; };
+
+  // body panels (cabin stays hollow inside)
+  add(box(1.74,0.10,3.95,dark)).position.set(0,0.42,0);
+  add(box(1.8,0.24,4.0,trim)).position.set(0,0.22,0);
+  for(const sx of [-0.95,0.95]) add(box(0.08,0.5,3.3,paint)).position.set(sx,0.72,0);
+  add(box(1.9,0.5,0.08,paint)).position.set(0,0.72,-1.98);
+  add(box(1.9,0.5,0.08,paintD)).position.set(0,0.72,1.98);
+  add(box(1.74,0.05,2.6,headln)).position.set(0,1.99,-0.05);  // headliner (front edge meets windshield top)
+  add(box(1.86,0.07,2.7,paint)).position.set(0,2.04,-0.10);   // roof skin
+  const hood=add(box(1.86,0.12,1.4,paint)); hood.position.set(0,0.9,-2.05); hood.rotation.x=-0.04;
+  add(box(1.86,0.14,1.0,paint)).position.set(0,0.95,1.95);
+  add(box(1.96,0.4,0.25,paintD)).position.set(0,0.5,-2.78);
+  add(box(1.96,0.4,0.25,paintD)).position.set(0,0.5,2.78);
+  for(const sx of [-0.66,0.66]){
+    add(box(0.34,0.16,0.08,head)).position.set(sx,0.74,-2.82);
+    add(box(0.32,0.16,0.08,tail)).position.set(sx,0.82,2.82);
+  }
+  // wheels
+  function wheel(x,z){
+    const w=new THREE.Mesh(new THREE.CylinderGeometry(0.36,0.36,0.26,20),dark);
+    w.rotation.z=Math.PI/2; w.position.set(x,0.36,z); car.add(w);
+    const cap=new THREE.Mesh(new THREE.CylinderGeometry(0.13,0.13,0.28,12),chrome);
+    cap.rotation.z=Math.PI/2; cap.position.set(x,0.36,z); car.add(cap);
+  }
+  wheel(-0.92,-1.35); wheel(0.92,-1.35); wheel(-0.92,1.4); wheel(0.92,1.4);
+  // pillars
+  function pil(x,z,t,h,y){ const p=box(0.08,h,0.09,paintD); p.position.set(x,y,z); p.rotation.x=t; car.add(p); }
+  pil(-0.9,-1.4,0.12,1.3,1.45); pil(0.9,-1.4,0.12,1.3,1.45);    // A (along windshield, near-upright)
+  pil(-0.95,0.0,0,1.2,1.45);    pil(0.95,0.0,0,1.2,1.45);       // B
+  pil(-0.9,1.45,-0.12,1.3,1.45); pil(0.9,1.45,-0.12,1.3,1.45);  // C
+  // glazing
+  const ws=add(new THREE.Mesh(new THREE.PlaneGeometry(1.7,1.3),glass)); ws.position.set(0,1.45,-1.4); ws.rotation.x=0.12;   // near-upright, meets roof
+  const rw=add(new THREE.Mesh(new THREE.PlaneGeometry(1.7,1.2),glass)); rw.position.set(0,1.5,1.45); rw.rotation.x=-0.12;
+  for(const sx of [-0.96,0.96]){ const sw=add(new THREE.Mesh(new THREE.PlaneGeometry(2.7,1.15),glass)); sw.position.set(sx,1.5,0.0); sw.rotation.y=Math.PI/2; }
+  // dashboard + cluster + screen (RHD)
+  add(box(1.86,0.26,0.45,trim)).position.set(0,0.8,-1.5);
+  const cowl=add(box(1.86,0.08,0.3,dark)); cowl.position.set(0,0.95,-1.52); cowl.rotation.x=-0.25;
+  add(box(0.54,0.2,0.12,dark)).position.set(0.4,0.88,-1.42);
+  for(const gx of [0.27,0.53]){
+    const ga=new THREE.Mesh(new THREE.TorusGeometry(0.075,0.012,8,24),chrome); ga.position.set(gx,0.88,-1.36); car.add(ga);
+    const fc=new THREE.Mesh(new THREE.CircleGeometry(0.07,20),new THREE.MeshBasicMaterial({color:0x0c0f15})); fc.position.set(gx,0.88,-1.365); car.add(fc);
+  }
+  const scr=add(new THREE.Mesh(new THREE.PlaneGeometry(0.32,0.18),screenM)); scr.position.set(-0.14,0.85,-1.44); scr.rotation.x=-0.12;
+  // console + shifter
+  add(box(0.34,0.4,1.2,trim)).position.set(0.02,0.62,-0.5);
+  add(new THREE.Mesh(new THREE.CylinderGeometry(0.025,0.03,0.22,8),dark)).position.set(0.02,0.92,-0.7);
+  add(new THREE.Mesh(new THREE.SphereGeometry(0.05,12,12),dark)).position.set(0.02,1.03,-0.7);
+  // steering wheel (RHD, animated)
+  const mount=new THREE.Group(); mount.position.set(0.4,0.82,-1.18); mount.rotation.x=-1.12;
+  steerWheel=new THREE.Group();
+  steerWheel.add(new THREE.Mesh(new THREE.TorusGeometry(0.185,0.026,10,32),dark));
+  steerWheel.add(new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,0.05,12),dark));
+  for(let k=0;k<3;k++){ const sp=box(0.17,0.022,0.03,dark); sp.rotation.z=k*2*Math.PI/3;
+    sp.position.x=Math.cos(k*2*Math.PI/3)*0.09; sp.position.y=Math.sin(k*2*Math.PI/3)*0.09; steerWheel.add(sp); }
+  mount.add(steerWheel); car.add(mount);
+  const col=add(new THREE.Mesh(new THREE.CylinderGeometry(0.04,0.04,0.4,8),dark)); col.position.set(0.4,0.88,-1.34); col.rotation.x=Math.PI/2-0.5;
+  // seats
+  function seat(x,z){
+    add(box(0.52,0.14,0.55,seatM)).position.set(x,0.6,z);
+    const bk=add(box(0.52,0.78,0.16,seatM)); bk.position.set(x,1.02,z+0.3); bk.rotation.x=0.16;
+    add(box(0.24,0.2,0.12,seatT)).position.set(x,1.46,z+0.36);
+  }
+  seat(-0.4,0.15); seat(0.45,0.15);
+  add(box(1.55,0.16,0.55,seatM)).position.set(0,0.6,1.25);
+  const rb=add(box(1.55,0.62,0.16,seatM)); rb.position.set(0,0.98,1.56); rb.rotation.x=0.12;
+  for(const hx of [-0.45,0.45]) add(box(0.24,0.18,0.12,seatT)).position.set(hx,1.36,1.6);
+  // doors
+  function door(x){ add(box(0.07,0.55,2.5,trim)).position.set(x,0.92,-0.1);
+    add(box(0.12,0.09,0.6,dark)).position.set(x+(x<0?0.06:-0.06),1.0,-0.3);
+    add(box(0.05,0.12,0.18,chrome)).position.set(x+(x<0?0.07:-0.07),1.05,-0.85); }
+  door(-0.92); door(0.92);
+  // mirror
+  add(box(0.24,0.07,0.05,dark)).position.set(0,1.82,-1.28);
+})();
+
+let carYaw=0, speed=0, steerView=0;
+
+// ============================ input ============================
+const keys = {};
+addEventListener('keydown', e => {
+  if (e.code==='Space'){ e.preventDefault(); toggleLook(); return; }
+  if (e.code==='KeyR'){ recenter(); return; }
+  if (e.code.startsWith('Arrow')) e.preventDefault();   // arrows = free-look, not page scroll
+  keys[e.code]=true;
+});
+addEventListener('keyup', e => {
+  if (e.code==='Space') e.preventDefault();   // a focused button must not also "click" on Space
+  keys[e.code]=false;
+});
+addEventListener('blur', () => { for (const k in keys) keys[k]=false; });   // no stuck keys after alt-tab
+
+// ============================ head-look mapping ============================
+// invX/invY are the defaults that match the Python app; the Flip buttons toggle away from them.
+const cfg = { yawDead:4, pitchDead:4, gainX:4.5, gainY:3.0, maxX:135, maxY:75, smooth:0.35, invX:false, invY:true };
+const DEF_INV = { x:cfg.invX, y:cfg.invY };
+let neutral={yaw:0,pitch:0}, sx=0, sy=0;
+let looking=false, haveFace=false, lastYaw=0, lastPitch=0, primed=false;
+let lastTx=0, lastTy=0, lastTz=0, neutralPos={x:0,y:0,z:0}, peekX=0, peekY=0, peekZ=0;
+let klYaw=0, klPitch=0, started=false;   // arrow-key free-look + loop-started flag
+const dz=(a,d)=>{const m=Math.abs(a);return m<=d?0:(a>0?m-d:-(m-d));};
+const clamp=(v,lo,hi)=>v<lo?lo:v>hi?hi:v;
+const wrap=(a,n)=>((a-n+180)%360+360)%360-180;   // signed difference, wrapped at ±180°
+function mapLook(pitch,yaw){
+  let hx=clamp(dz(wrap(yaw,neutral.yaw),cfg.yawDead)*cfg.gainX,-cfg.maxX,cfg.maxX);
+  let hy=clamp(dz(wrap(pitch,neutral.pitch),cfg.pitchDead)*cfg.gainY,-cfg.maxY,cfg.maxY);
+  if(cfg.invX)hx=-hx; if(cfg.invY)hy=-hy;
+  sx=cfg.smooth*sx+(1-cfg.smooth)*hx; sy=cfg.smooth*sy+(1-cfg.smooth)*hy;
+  return [sx,sy];
+}
+
+// ============================ controls ============================
+const engageBtn=document.getElementById('engageBtn');
+function toggleLook(){ looking=!looking; engageBtn.classList.toggle('on',looking);
+  engageBtn.textContent=(looking?'Head-look ON ':'Engage head-look ')+'(Space)'; }
+const recenterBtn=document.getElementById('recenterBtn');
+function recenter(){ neutral={yaw:lastYaw,pitch:lastPitch}; neutralPos={x:lastTx,y:lastTy,z:lastTz}; sx=sy=0; peekX=peekY=peekZ=0; klYaw=klPitch=0;
+  recenterBtn.classList.add('flash'); setTimeout(()=>recenterBtn.classList.remove('flash'),250); }
+// after a mouse click, hand the keyboard back to the game (Space/arrows shouldn't act on a focused button)
+const blurIfMouse=(e)=>{ if(e.detail>0) e.currentTarget.blur(); };
+engageBtn.onclick=(e)=>{ toggleLook(); blurIfMouse(e); }; recenterBtn.onclick=(e)=>{ recenter(); blurIfMouse(e); };
+const flipXBtn=document.getElementById('flipXBtn'), flipYBtn=document.getElementById('flipYBtn');
+function setFlip(e,btn,axis){ cfg[axis]=!cfg[axis]; const on=cfg[axis]!==DEF_INV[axis.slice(-1).toLowerCase()];
+  btn.classList.toggle('on',on); btn.setAttribute('aria-pressed',on); blurIfMouse(e); }
+flipXBtn.onclick=(e)=>setFlip(e,flipXBtn,'invX');
+flipYBtn.onclick=(e)=>setFlip(e,flipYBtn,'invY');
+document.getElementById('sens').oninput=e=>{const g=parseFloat(e.target.value);cfg.gainX=g;cfg.gainY=g*0.67;};
+
+const dCam=document.getElementById('dCam'),sCam=document.getElementById('sCam');
+const dFace=document.getElementById('dFace'),sFace=document.getElementById('sFace');
+const camCap=document.getElementById('camCap');
+const angTxt=document.getElementById('angTxt'),speedEl=document.getElementById('speed');
+
+// ============================ camera + face landmarker ============================
+const video=document.getElementById('video');
+const camCanvas=document.getElementById('camCanvas');
+const cctx=camCanvas.getContext('2d');
+let faceLandmarker=null, drawUtils=null;
+
+async function start(){
+  document.getElementById('err').textContent='';
+  started=true;
+  let camOk=false;
+  try {
+    const stream=await navigator.mediaDevices.getUserMedia({video:{width:640,height:480},audio:false});
+    video.srcObject=stream; await video.play();
+    dCam.className='dot ok'; sCam.textContent='camera: on'; camOk=true;
+    camCap.textContent='LIVE · FACE TRACKING'; camCap.classList.remove('off');
+  } catch(e){
+    dCam.className='dot bad'; sCam.textContent='camera: off';
+    sFace.textContent = navigator.mediaDevices
+      ? 'face: camera off — arrow keys to look'
+      : 'face: camera needs localhost or https — arrow keys to look';
+  }
+  if(camOk){
+    sFace.textContent='face: loading model…';
+    try{
+      const fileset=await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm");
+      // official MediaPipe model, fetched once by your browser (nothing about you is sent)
+      const MODEL_URL="https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task";
+      faceLandmarker=await FaceLandmarker.createFromOptions(fileset,{
+        baseOptions:{ modelAssetPath:MODEL_URL },
+        runningMode:"VIDEO", numFaces:1, outputFacialTransformationMatrixes:true });
+      drawUtils=new DrawingUtils(cctx);
+      sFace.textContent='face: searching…';
+    } catch(e){ sFace.textContent='face: model failed to load'; }
+  }
+  document.getElementById('gate').style.display='none';
+  requestAnimationFrame(loop);
+}
+document.getElementById('startBtn').onclick=start;
+
+function anglesFrom(m){ const R00=m[0],R10=m[1],R20=m[2],R21=m[6],R22=m[10];
+  const sy2=Math.hypot(R00,R10);
+  return { pitch:Math.atan2(R21,R22)*180/Math.PI, yaw:Math.atan2(-R20,sy2)*180/Math.PI }; }
+
+let lastTs=-1;
+function detect(){
+  if(!faceLandmarker || video.readyState<2) return;
+  const ts=performance.now(); if(ts<=lastTs) return; lastTs=ts;
+  const res=faceLandmarker.detectForVideo(video,ts);
+  haveFace = res.faceLandmarks && res.faceLandmarks.length>0;
+  if(camCanvas.width!==video.videoWidth){ camCanvas.width=video.videoWidth; camCanvas.height=video.videoHeight; }
+  cctx.drawImage(video,0,0,camCanvas.width,camCanvas.height);
+  if(haveFace){
+    drawUtils.drawConnectors(res.faceLandmarks[0], FaceLandmarker.FACE_LANDMARKS_TESSELATION, {color:'rgba(80,255,140,0.25)',lineWidth:1});
+    drawUtils.drawConnectors(res.faceLandmarks[0], FaceLandmarker.FACE_LANDMARKS_FACE_OVAL, {color:'rgba(80,255,140,0.9)',lineWidth:2});
+  }
+  if(haveFace && res.facialTransformationMatrixes && res.facialTransformationMatrixes.length){
+    const M=res.facialTransformationMatrixes[0].data;
+    const a=anglesFrom(M);
+    lastYaw=a.yaw; lastPitch=a.pitch; lastTx=M[12]; lastTy=M[13]; lastTz=M[14];
+    if(!primed){ neutral={yaw:a.yaw,pitch:a.pitch}; neutralPos={x:lastTx,y:lastTy,z:lastTz}; primed=true; }
+    dFace.className='dot ok'; sFace.textContent='face: tracking';
+    angTxt.textContent=`yaw ${a.yaw.toFixed(1)}°  pitch ${a.pitch.toFixed(1)}°`;
+  } else { dFace.className='dot warn'; sFace.textContent='face: not found'; angTxt.textContent='yaw — · pitch —'; }
+}
+
+// ============================ main loop ============================
+const clock=new THREE.Clock();
+const ACCEL=26,BRAKE=40,MAX_FWD=40,MAX_REV=-12,TURN=1.7,FRICTION=8;
+const seatWorld=new THREE.Vector3();
+
+function loop(){
+  try { detect(); }
+  catch(e){ console.error('face tracking stopped:', e); faceLandmarker=null; haveFace=false;
+    dFace.className='dot bad'; sFace.textContent='face: tracking error — arrow keys to look'; }
+  const dt=Math.min(clock.getDelta(),0.05);
+
+  if(keys['KeyW']) speed+=ACCEL*dt;
+  else if(keys['KeyS']) speed-=BRAKE*dt;
+  else { const f=FRICTION*dt; speed=speed>0?Math.max(0,speed-f):Math.min(0,speed+f); }
+  speed=Math.max(MAX_REV,Math.min(MAX_FWD,speed));
+
+  const steerIn=(keys['KeyA']?1:0)-(keys['KeyD']?1:0);   // WASD drives; arrows are free-look
+  carYaw += TURN*dt*Math.sign(speed)*Math.min(1,Math.abs(speed)/8+0.25)*steerIn;
+  steerView += (steerIn - steerView)*Math.min(1,dt*7);
+  if(steerWheel) steerWheel.rotation.z = -steerView*2.3;
+
+  const fx=-Math.sin(carYaw),fz=-Math.cos(carYaw);
+  const dX=fx*speed*dt, dZ=fz*speed*dt, CR=1.3;   // car half-extent for collision
+  const blocked=(x,z)=>obstacles.some(o=>Math.abs(x-o.cx)<o.hw+CR && Math.abs(z-o.cz)<o.hd+CR);
+  let moved=false;
+  if(!blocked(car.position.x+dX, car.position.z)){ car.position.x+=dX; moved=true; }
+  if(!blocked(car.position.x, car.position.z+dZ)){ car.position.z+=dZ; moved=true; }
+  if(!moved) speed=0;   // bumped a wall: stop
+  car.rotation.y=carYaw;
+
+  let lx=0,ly=0, tX=0,tY=0,tZ=0;
+  if(looking && haveFace){                                // head-look OVERRIDES arrows
+    [lx,ly]=mapLook(lastPitch,lastYaw);
+    tX=clamp((lastTx-neutralPos.x)*0.007,-0.22,0.22);   // lean left/right peek
+    tY=clamp((lastTy-neutralPos.y)*0.007,-0.15,0.15);   // lean up/down
+    tZ=clamp((lastTz-neutralPos.z)*0.009,-0.28,0.28);   // lean in/out
+    klYaw=0; klPitch=0;
+  } else {                                                // arrow-key free-look fallback
+    sx=sy=0;
+    const ky=(keys['ArrowLeft']?1:0)-(keys['ArrowRight']?1:0);
+    const kp=(keys['ArrowUp']?1:0)-(keys['ArrowDown']?1:0);
+    klYaw += ky*120*dt; klPitch += kp*90*dt;
+    if(!ky) klYaw   -= klYaw*Math.min(1,dt*4);            // ease back to forward
+    if(!kp) klPitch -= klPitch*Math.min(1,dt*4);
+    klYaw=clamp(klYaw,-135,135); klPitch=clamp(klPitch,-75,75);
+    lx=klYaw; ly=klPitch;
+  }
+  peekX+=(tX-peekX)*0.2; peekY+=(tY-peekY)*0.2; peekZ+=(tZ-peekZ)*0.2;   // smooth
+  seatWorld.set(SEAT.x+peekX, SEAT.y+peekY, SEAT.z-peekZ).applyAxisAngle(UP,carYaw).add(car.position);
+  camera.position.copy(seatWorld);
+  camera.rotation.y = carYaw + THREE.MathUtils.degToRad(lx);
+  camera.rotation.x = THREE.MathUtils.degToRad(ly);
+
+  speedEl.textContent = Math.abs(Math.round(speed));
+  renderer.render(scene,camera);
+  requestAnimationFrame(loop);
+}
+
+// render the scene behind the gate before the camera starts
+(function idle(){ if(!started){
+  seatWorld.copy(SEAT).applyAxisAngle(UP,carYaw).add(car.position);
+  camera.position.copy(seatWorld); camera.rotation.set(0,carYaw,0);
+  renderer.render(scene,camera); requestAnimationFrame(idle);
+} })();
+</script>
+</body>
+</html>

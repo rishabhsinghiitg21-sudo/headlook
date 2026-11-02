@@ -1,0 +1,20 @@
+# virtualenv + downloaded model (setup.sh recreates both)
+.venv/
+models/
+*.task
+
+# Python
+__pycache__/
+*.pyc
+
+# macOS
+.DS_Store
+
+# Art of Rally plugin build output (and the built dll; build it yourself)
+artofrally-mod/bin/
+artofrally-mod/obj/
+*.dll
+
+# Third-party assets that must not be redistributed
+sandbox/textures/*
+!sandbox/textures/pedestrian_overpass_1k.hdr

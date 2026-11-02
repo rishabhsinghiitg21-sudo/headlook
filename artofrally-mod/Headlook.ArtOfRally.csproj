@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net46</TargetFramework>
+    <AssemblyName>Headlook.ArtOfRally</AssemblyName>
+    <LangVersion>latest</LangVersion>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <DebugType>none</DebugType>
+    <Deterministic>true</Deterministic>
+    <NoWarn>$(NoWarn);NU1701;CS0436</NoWarn>
+
+    <!-- Game install path. Pick one:
+           ART_OF_RALLY_DIR="/path/to/artofrally" dotnet build -c Release
+           dotnet build -c Release -p:GameDir="/path/to/artofrally"
+         Default: the Epic Games Store location on macOS. -->
+    <GameDir Condition="'$(GameDir)' == '' and '$(ART_OF_RALLY_DIR)' != ''">$(ART_OF_RALLY_DIR)</GameDir>
+    <GameDir Condition="'$(GameDir)' == ''">/Users/Shared/Epic Games/artofrally</GameDir>
+    <GameCore>$(GameDir)/BepInEx/core</GameCore>
+    <GameManaged>$(GameDir)/Contents/Resources/Data/Managed</GameManaged>
+  </PropertyGroup>
+
+  <!-- net46 reference assemblies without needing the framework installed -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="BepInEx"><HintPath>$(GameCore)/BepInEx.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="0Harmony"><HintPath>$(GameCore)/0Harmony.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine"><HintPath>$(GameManaged)/UnityEngine.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.CoreModule"><HintPath>$(GameManaged)/UnityEngine.CoreModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.InputLegacyModule"><HintPath>$(GameManaged)/UnityEngine.InputLegacyModule.dll</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+
+</Project>
